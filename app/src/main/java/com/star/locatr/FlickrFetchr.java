@@ -35,7 +35,7 @@ public class FlickrFetchr {
     private static final String NO_JSON_CALL_BACK_KEY = "nojsoncallback";
     private static final String NO_JSON_CALL_BACK_VALUE = "1";
     private static final String EXTRAS_KEY = "extras";
-    private static final String EXTRAS_VALUE = "url_s";
+    private static final String EXTRAS_VALUE = "url_s,geo";
     private static final String TEXT = "text";
 
     private static final Uri ENDPOINT = Uri
@@ -156,6 +156,8 @@ public class FlickrFetchr {
 
             item.setUrl(photoJSONObject.getString("url_s"));
             item.setOwner(photoJSONObject.getString("owner"));
+            item.setLat(photoJSONObject.getDouble("latitude"));
+            item.setLat(photoJSONObject.getDouble("longitude"));
 
             items.add(item);
         }

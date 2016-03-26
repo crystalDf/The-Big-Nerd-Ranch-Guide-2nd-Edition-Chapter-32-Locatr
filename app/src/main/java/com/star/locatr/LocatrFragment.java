@@ -19,6 +19,8 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 
 import java.io.IOException;
@@ -29,6 +31,10 @@ public class LocatrFragment extends SupportMapFragment {
     private static final String TAG = "LocatrFragment";
 
     private GoogleApiClient mGoogleApiClient;
+    private GoogleMap mGoogleMap;
+    private Bitmap mMapImage;
+    private GalleryItem mMapItem;
+    private Location mCurrentLocation;
 
     public static LocatrFragment newInstance() {
         return new LocatrFragment();
@@ -54,6 +60,13 @@ public class LocatrFragment extends SupportMapFragment {
                     }
                 })
                 .build();
+
+        getMapAsync(new OnMapReadyCallback() {
+            @Override
+            public void onMapReady(GoogleMap googleMap) {
+                mGoogleMap = googleMap;
+            }
+        });
 
     }
 
@@ -131,9 +144,11 @@ public class LocatrFragment extends SupportMapFragment {
 
         private GalleryItem mGalleryItem;
         private Bitmap mBitmap;
+        private Location mLocation;
 
         @Override
         protected Void doInBackground(Location... params) {
+            mLocation = params[0];
             FlickrFetchr flickrFetchr = new FlickrFetchr();
             List<GalleryItem> galleryItems = flickrFetchr.searchPhotos(params[0]);
 
@@ -156,7 +171,9 @@ public class LocatrFragment extends SupportMapFragment {
 
         @Override
         protected void onPostExecute(Void aVoid) {
-
+            mMapImage = mBitmap;
+            mMapItem = mGalleryItem;
+            mCurrentLocation = mLocation;
         }
     }
 }

@@ -4,17 +4,20 @@ package com.star.locatr;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
@@ -29,18 +32,25 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.squareup.picasso.Picasso;
+import com.squareup.picasso.Target;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class LocatrFragment extends SupportMapFragment {
 
     private static final String TAG = "LocatrFragment";
 
+    private static final int REQUEST_CODE = 0;
+
     private GoogleApiClient mGoogleApiClient;
+
     private GoogleMap mGoogleMap;
-    private Bitmap mMapImage;
-    private GalleryItem mMapItem;
+
+    private Bitmap mMapBitmap;
+    private GalleryItem mMapGalleryItem;
+
     private Location mCurrentLocation;
 
     public static LocatrFragment newInstance() {
@@ -58,12 +68,19 @@ public class LocatrFragment extends SupportMapFragment {
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                     @Override
                     public void onConnected(@Nullable Bundle bundle) {
-                        getActivity().invalidateOptionsMenu();
+                        getActivity().supportInvalidateOptionsMenu();
+                        Log.i(TAG, "Connected");
                     }
 
                     @Override
                     public void onConnectionSuspended(int i) {
 
+                    }
+                })
+                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                    @Override
+                    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+                        Log.i(TAG, "Connection Failed");
                     }
                 })
                 .build();
@@ -83,7 +100,7 @@ public class LocatrFragment extends SupportMapFragment {
     public void onStart() {
         super.onStart();
 
-        getActivity().invalidateOptionsMenu();
+        getActivity().supportInvalidateOptionsMenu();
 
         mGoogleApiClient.connect();
     }
@@ -118,47 +135,91 @@ public class LocatrFragment extends SupportMapFragment {
 
     private void findImage() {
 
-        LocationRequest locationRequest = LocationRequest.create();
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        locationRequest.setNumUpdates(1);
-        locationRequest.setInterval(0);
+        List<String> permissionList = new ArrayList<>();
 
         if (ActivityCompat.checkSelfPermission(getActivity(),
-                Manifest.permission.ACCESS_FINE_LOCATION) !=
-                PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(getActivity(),
-                        Manifest.permission.ACCESS_COARSE_LOCATION) !=
-                        PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissionList.add(Manifest.permission.ACCESS_FINE_LOCATION);
         }
 
-        LocationServices.FusedLocationApi
-                .requestLocationUpdates(mGoogleApiClient, locationRequest, new LocationListener() {
-                    @Override
-                    public void onLocationChanged(Location location) {
-                        Log.i(TAG, "Got a fix: " + location);
-                        new SearchTask().execute(location);
+        if (ActivityCompat.checkSelfPermission(getActivity(),
+                Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissionList.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+
+        if (ActivityCompat.checkSelfPermission(getActivity(),
+                Manifest.permission.ACCESS_NETWORK_STATE) != PackageManager.PERMISSION_GRANTED) {
+            permissionList.add(Manifest.permission.ACCESS_NETWORK_STATE);
+        }
+
+        if (ActivityCompat.checkSelfPermission(getActivity(),
+                Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            permissionList.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        if (!permissionList.isEmpty()) {
+            ActivityCompat.requestPermissions(getActivity(),
+                    permissionList.toArray(new String[permissionList.size()]), REQUEST_CODE);
+        } else {
+            doFindImage();
+        }
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        switch (requestCode) {
+            case REQUEST_CODE:
+                if (grantResults.length > 0) {
+                    for (int grantResult : grantResults) {
+                        if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                            Toast.makeText(getActivity(), "Some permission denied. ",
+                                    Toast.LENGTH_LONG).show();
+                            return;
+                        }
                     }
-                });
+                    doFindImage();
+                }
+                break;
+            default:
+                break;
+        }
+
+    }
+
+    private void doFindImage() {
+
+        try {
+            LocationRequest locationRequest = LocationRequest.create();
+            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            locationRequest.setNumUpdates(1);
+            locationRequest.setInterval(0);
+
+            LocationServices.FusedLocationApi
+                    .requestLocationUpdates(mGoogleApiClient, locationRequest, new LocationListener() {
+                        @Override
+                        public void onLocationChanged(Location location) {
+                            Log.i(TAG, "Got a fix: " + location);
+                            new SearchTask().execute(location);
+                        }
+                    });
+        } catch (SecurityException se) {
+            se.printStackTrace();
+        }
     }
 
     private void updateUI() {
-        if (mGoogleMap == null || mMapImage == null) {
+        if (mGoogleMap == null || mMapBitmap == null) {
             return;
         }
 
-        LatLng itemPoint = new LatLng(mMapItem.getLat(), mMapItem.getLon());
+        LatLng itemPoint = new LatLng(mMapGalleryItem.getLat(), mMapGalleryItem.getLon());
         LatLng myPoint = new LatLng(
                 mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
 
-        BitmapDescriptor itemBitmap = BitmapDescriptorFactory.fromBitmap(mMapImage);
+        BitmapDescriptor itemBitmap = BitmapDescriptorFactory.fromBitmap(mMapBitmap);
         MarkerOptions itemMarker = new MarkerOptions()
                 .position(itemPoint)
                 .icon(itemBitmap);
@@ -179,42 +240,50 @@ public class LocatrFragment extends SupportMapFragment {
         mGoogleMap.animateCamera(update);
     }
 
-    private class SearchTask extends AsyncTask<Location, Void, Void> {
-
-        private GalleryItem mGalleryItem;
-        private Bitmap mBitmap;
-        private Location mLocation;
+    private class SearchTask extends AsyncTask<Location, Void, List<GalleryItem>> {
 
         @Override
-        protected Void doInBackground(Location... params) {
-            mLocation = params[0];
-            FlickrFetchr flickrFetchr = new FlickrFetchr();
-            List<GalleryItem> galleryItems = flickrFetchr.searchPhotos(params[0]);
+        protected List<GalleryItem> doInBackground(Location... params) {
 
-            if (galleryItems.size() == 0) {
-                return null;
-            }
+            mCurrentLocation = params[0];
 
-            mGalleryItem = galleryItems.get(0);
-
-            try {
-                byte[] bytes = flickrFetchr.getUrlBytes(mGalleryItem.getUrl());
-                mBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-            } catch (IOException e) {
-                Log.i(TAG, "Unable to download bitmap", e);
-                e.printStackTrace();
-            }
-
-            return null;
+            return new FlickrFetchr().searchPhotos(params[0]);
         }
 
         @Override
-        protected void onPostExecute(Void aVoid) {
-            mMapImage = mBitmap;
-            mMapItem = mGalleryItem;
-            mCurrentLocation = mLocation;
+        protected void onPostExecute(List<GalleryItem> items) {
 
-            updateUI();
+            if (!items.isEmpty()) {
+
+                mMapGalleryItem = items.get(0);
+
+                bindGalleryItem(mMapGalleryItem);
+
+                updateUI();
+            }
         }
     }
+
+    private void bindGalleryItem(GalleryItem galleryItem) {
+        Picasso.with(getActivity())
+                .load(galleryItem.getUrl())
+                .placeholder(R.drawable.emma)
+                .into(new Target() {
+                    @Override
+                    public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom loadedFrom) {
+                        mMapBitmap = bitmap;
+                    }
+
+                    @Override
+                    public void onBitmapFailed(Drawable drawable) {
+
+                    }
+
+                    @Override
+                    public void onPrepareLoad(Drawable drawable) {
+
+                    }
+                });
+    }
+
 }
